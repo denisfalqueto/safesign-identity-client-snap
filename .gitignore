@@ -1,0 +1,15 @@
+
+# Created by https://www.gitignore.io/api/snapcraft
+
+### Snapcraft ###
+# Snapcraft
+parts/
+prime/
+stage/
+*.snap
+
+snap/.snapcraft/
+*_source.tar.*
+
+# End of https://www.gitignore.io/api/snapcraft
+

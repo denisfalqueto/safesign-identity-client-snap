@@ -1,0 +1,138 @@
+name: safesign-identity-client
+version: '3.0.101-1'
+summary: Conjunto de drivers para acesso a tokens e Smart Cards
+description: |
+  bla bla bla.
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: devmode # use 'strict' once you have the right plugs and slots
+
+apps:
+  tokenadmin:
+    command: usr/bin/tokenadmin
+    plugs: 
+      - hardware-observe
+      - raw-usb
+      - desktop
+      - x11
+      - wayland
+  dlgserver:
+    command: usr/bin/dlgserver
+
+parts:
+  openssl098:
+    plugin: autotools
+    source: https://github.com/openssl/openssl.git
+    source-type: git
+    source-depth: 1
+    source-branch: OpenSSL_0_9_8-stable
+    override-pull: |
+      snapcraftctl pull
+      patch -p0 < ../../../snap/openssl098/ca-dir.patch
+      patch -p0 < ../../../snap/openssl098/no-rpath.patch
+      sed -i '/^push(@INC/s|)|,".")|' crypto/des/asm/des-586.pl
+    override-build: |
+      ./config --prefix="/usr" --openssldir="/etc/ssl" --libdir="lib" shared \
+        enable-md2 -Wa,--noexecstack
+      sed -i '/^CFLAG=/s/$/ $(CFLAGS)/' Makefile
+      make
+    override-stage: |
+      snapcraftctl stage
+      install -D -m0755 ../parts/openssl098/build/libssl.so.0.9.8 "usr/lib/libssl.so.0.9.8"
+      install -D -m0755 ../parts/openssl098/build/libcrypto.so.0.9.8 "usr/lib/libcrypto.so.0.9.8"
+
+  wxgtk28:
+    after:
+      - openssl098
+    plugin: autotools
+    source: https://github.com/wxWidgets/wxPython.git
+    source-type: git
+    source-depth: 1
+    source-branch: wxPy-2.8.12.1
+    build-packages: 
+      - build-essential
+      - g++
+      - gettext
+      - zlib1g-dev
+      - libpng12-dev
+      - libtiff5-dev
+      - libjpeg-turbo8-dev
+      - libmspack-dev
+      - libexpat1-dev
+      - libgtk2.0-dev
+    stage-packages:
+      - libpng12-0
+      - libjpeg-turbo8
+      - libtiff5
+      - libexpat1
+      - libmspack0
+      - pkg-config
+      - libgtk2.0-0
+    override-pull: |
+      snapcraftctl pull
+
+      patch -p1 -i ../../../snap/wxgtk28/wxwidgets-2.8-collision.patch
+
+      # C++ ABI check is too strict and breaks with GCC 5.1
+      # https://bugzilla.redhat.com/show_bug.cgi?id=1200611
+      patch -Np1 -i ../../../snap/wxgtk28/make-abicheck-non-fatal.patch
+
+      # fix gcc6 narrowing error
+      # https://bugs.gentoo.org/show_bug.cgi?id=592442
+      patch -p1 -i ../../../snap/wxgtk28/wxGTK-2.8.12.1-r2-gcc6.patch
+
+    override-build: |
+      CXXFLAGS="-fabi-version=2"
+
+      mkdir -p build-base
+      mkdir -p build-gtk
+
+      cd "build-base"
+      ../configure \
+        --prefix=/usr \
+        --libdir=/usr/lib \
+        --with-regex='builtin' \
+        --enable-unicode \
+        --disable-precomp-headers \
+        --disable-gui
+      make
+      make -C ../locale allmo
+      cd ..
+
+      cd "build-gtk"
+      ../configure \
+        --prefix=/usr \
+        --libdir=/usr/lib \
+        --with-gtk='2' \
+        --with-libjpeg='sys' \
+        --with-libpng='sys' \
+        --with-libtiff='sys' \
+        --with-libxpm='sys' \
+        --with-regex='builtin' \
+        --enable-unicode \
+        --without-libnotify \
+        --without-gnomevfs \
+        --without-gnomeprint \
+        --disable-mediactrl \
+        --disable-precomp-headers \
+        --disable-webview
+      make
+      make -C ../locale allmo
+      cd ..
+
+  safesign:
+    after:
+      - wxgtk28
+    plugin: dump
+    source: https://raw.githubusercontent.com/geyslan/morpho/master/SafeSignIC3.0.101-x86_64-deb6-admin.deb
+    stage-packages:
+      - libgdbm3
+      - libmspack0
+      - libpcsclite1
+      - xdg-utils
+      - libacsccid1
+      - libasedrive-usb
+      - libccid
+      - pcscd
+      - libgempc410
+      - libgempc430
