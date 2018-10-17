@@ -32,13 +32,15 @@ parts:
       patch -p0 < ../../../snap/openssl098/no-rpath.patch
       sed -i '/^push(@INC/s|)|,".")|' crypto/des/asm/des-586.pl
     override-build: |
-      ./config --prefix="/usr" --openssldir="/etc/ssl" --libdir="lib" shared \
+      ./config --prefix="/usr" --openssldir="/etc/ssl" shared \
         enable-md2 -Wa,--noexecstack
       sed -i '/^CFLAG=/s/$/ $(CFLAGS)/' Makefile
       make
-    override-stage: |
-      install -D -m0755 ../parts/openssl098/build/libssl.so.0.9.8 "usr/lib/libssl.so.0.9.8"
-      install -D -m0755 ../parts/openssl098/build/libcrypto.so.0.9.8 "usr/lib/libcrypto.so.0.9.8"
+
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib
+      mv *.so.0.9.8 $SNAPCRAFT_PART_INSTALL/usr/lib
+    organize:
+      openssl098/install/usr/lib/*.so.0.9.8: usr/lib/
 
   wxgtk28:
     after:
